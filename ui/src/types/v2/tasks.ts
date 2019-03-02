@@ -2,7 +2,7 @@ import {Task as TaskAPI, Organization, User, Label} from '@influxdata/influx'
 
 export interface Task extends Exclude<TaskAPI, 'labels'> {
   labels: Label[]
-  organization: Organization
+  organization?: Organization
   owner?: User
 }
 
