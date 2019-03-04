@@ -120,7 +120,8 @@ const (
 	// LabelsResourceType gives permission to one or more labels.
 	LabelsResourceType = ResourceType("labels") // 11
 	// ViewsResourceType gives permission to one or more views.
-	ViewsResourceType = ResourceType("views") // 12
+	ViewsResourceType     = ResourceType("views")     // 12
+	DocumentsResourceType = ResourceType("documents") // 12
 )
 
 // AllResourceTypes is the list of all known resource types.
