@@ -110,8 +110,10 @@ func (i *DocumentIndex) AddDocumentOwner(id influxdb.ID, ownerType string, owner
 	}
 
 	m := &influxdb.UserResourceMapping{
-		UserID:       ownerID,
-		UserType:     influxdb.Owner,
+		UserID:   ownerID,
+		UserType: influxdb.Owner,
+		// In this case UserID refers to an organization rather than a user.
+		MappingType:  influxdb.OrgMappingType,
 		ResourceType: influxdb.DocumentsResourceType,
 		ResourceID:   id,
 	}
@@ -230,7 +232,10 @@ func (i *DocumentIndex) GetDocumentsAccessors(docID influxdb.ID) ([]influxdb.ID,
 
 	ids := make([]influxdb.ID, 0, len(ms))
 	for _, m := range ms {
-		// TODO(desa): this is really an orgID
+		if m.MappingType == influxdb.UserMappingType {
+			continue
+		}
+		// TODO(desa): this is really an orgID, eventually we should support users and org as owners of documents
 		ids = append(ids, m.UserID)
 	}
 

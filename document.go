@@ -28,6 +28,7 @@ type DocumentStore interface {
 }
 
 type DocumentIndex interface {
+	// TODO(desa): support users as document owners eventually
 	AddDocumentOwner(docID ID, ownerType string, ownerID ID) error
 	RemoveDocumentOwner(docID ID, ownerType string, ownerID ID) error
 
