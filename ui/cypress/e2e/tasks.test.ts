@@ -42,6 +42,8 @@ describe('Tasks', () => {
         cy.createTask(id)
         cy.createTask(id)
 
+        cy.visit('/tasks')
+
         cy.getByTestID('task-card').should('have.length', 2)
 
         cy.getByTestID('task-card')
