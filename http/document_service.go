@@ -57,6 +57,9 @@ func NewDocumentHandler(b *DocumentBackend) *DocumentHandler {
 	h.HandlerFunc("PUT", documentPath, h.handlePutDocument)
 	h.HandlerFunc("DELETE", documentPath, h.handleDeleteDocument)
 
+	// TODO(desa): delete this
+	h.DocumentService.CreateDocumentStore(context.TODO(), "templates")
+
 	return h
 }
 
