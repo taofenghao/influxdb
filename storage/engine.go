@@ -405,7 +405,7 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 	}
 
 	// Convert the points to values for adding to the WAL/Cache.
-	values, err := tsm1.PointsToValues(collection.Points)
+	values, err := tsm1.CollectionToValues(collection)
 	if err != nil {
 		return err
 	}
@@ -433,7 +433,7 @@ func (e *Engine) writePointsLocked(collection *tsdb.SeriesCollection, values map
 	// more than the points so we need to recreate them.
 	if collection.PartialWriteError() != nil {
 		var err error
-		values, err = tsm1.PointsToValues(collection.Points)
+		values, err = tsm1.CollectionToValues(collection)
 		if err != nil {
 			return err
 		}
