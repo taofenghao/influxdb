@@ -18,6 +18,19 @@ import (
 	"github.com/influxdata/influxdb/pkg/escape"
 )
 
+// Values used internally by the storage engine to store the field key and
+// measurement names.
+const (
+	FieldKeyInternalTagKey    = "\xff"
+	MeasurementInternalTagKey = "\x00"
+)
+
+// Predefined byte representations of tag key.
+var (
+	FieldKeyInternalTagKeyBytes    = []byte(FieldKeyInternalTagKey)
+	MeasurementInternalTagKeyBytes = []byte(MeasurementInternalTagKey)
+)
+
 type escapeSet struct {
 	k   [1]byte
 	esc [2]byte
@@ -2462,9 +2475,10 @@ func appendField(b []byte, k string, v interface{}) []byte {
 	return b
 }
 
-// ValidKeyToken returns true if the token used for measurement, tag key, or tag
-// value is a valid unicode string and only contains printable, non-replacement characters.
-func ValidKeyToken(s string) bool {
+// ValidToken returns true if the provided token is a valid unicode string, and
+// only contains printable, non-replacement characters.
+func ValidToken(a []byte) bool {
+	s := string(a)
 	if !utf8.ValidString(s) {
 		return false
 	}
@@ -2476,13 +2490,24 @@ func ValidKeyToken(s string) bool {
 	return true
 }
 
-// ValidKeyTokens returns true if the measurement name and all tags are valid.
-func ValidKeyTokens(name string, tags Tags) bool {
-	if !ValidKeyToken(name) {
-		return false
-	}
+// ValidTagTokens returns true if all the provided tag key and values are
+// valid.
+//
+// ValidTagTokens does not validate the special tag keys used to represent the
+// measurement name and field key, but it does validate the associated values.
+func ValidTagTokens(tags Tags) bool {
 	for _, tag := range tags {
-		if !ValidKeyToken(string(tag.Key)) || !ValidKeyToken(string(tag.Value)) {
+		key := string(tag.Key)
+		switch key {
+		case MeasurementInternalTagKey:
+		case FieldKeyInternalTagKey:
+		default:
+			if !ValidToken(tag.Key) {
+				return false
+			}
+		}
+
+		if !ValidToken(tag.Value) {
 			return false
 		}
 	}
