@@ -1,6 +1,9 @@
-import {Task, Organization} from 'src/types/v2'
+import _ from 'lodash'
 
 import {client} from 'src/utils/api'
+
+import {Task, Organization} from 'src/types/v2'
+import {Template} from 'src/shared/utils/resourceToTemplate'
 
 export enum ActionTypes {
   GetTasks = 'GET_TASKS',
@@ -25,4 +28,14 @@ export const getTasks = (org: Organization) => async dispatch => {
   const tasksWithOrg = tasks.map(t => ({...t, organization})) as Task[]
 
   dispatch(populateTasks(tasksWithOrg))
+}
+
+export const createTaskFromTemplate = (
+  template: Template,
+  orgID: string
+) => async dispatch => {
+  // try catch
+  client.tasks.createFromTemplate(template, orgID)
+
+  dispatch(getTasks(orgID))
 }
