@@ -261,14 +261,14 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 			return &datatypes.Node{
 				NodeType: datatypes.NodeTypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
-					TagRefValue: tsdb.FieldKeyTagKey,
+					TagRefValue: tsdb.FieldKeyInternalTagKey,
 				},
 			}, nil
 		case measurementKey:
 			return &datatypes.Node{
 				NodeType: datatypes.NodeTypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
-					TagRefValue: tsdb.MeasurementTagKey,
+					TagRefValue: tsdb.MeasurementInternalTagKey,
 				},
 			}, nil
 		case valueKey:

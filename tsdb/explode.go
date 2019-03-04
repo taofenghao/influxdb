@@ -9,13 +9,14 @@ import (
 
 // Values used to store the field key and measurement name as tags.
 const (
-	FieldKeyTagKey    = "_f"
-	MeasurementTagKey = "_m"
+	FieldKeyInternalTagKey    = "\xff"
+	MeasurementInternalTagKey = "\x00"
 )
 
+// Predefined byte representations of tag key.
 var (
-	FieldKeyTagKeyBytes    = []byte(FieldKeyTagKey)
-	MeasurementTagKeyBytes = []byte(MeasurementTagKey)
+	FieldKeyInternalTagKeyBytes    = []byte(FieldKeyInternalTagKey)
+	MeasurementInternalTagKeyBytes = []byte(MeasurementInternalTagKey)
 )
 
 // DecodeName converts tsdb internal serialization back to organization and bucket IDs.
@@ -48,7 +49,7 @@ func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Poi
 	tags := make(models.Tags, 2)
 	for _, pt := range points {
 		tags = tags[:2]
-		tags[1] = models.NewTag(MeasurementTagKeyBytes, pt.Name())
+		tags[1] = models.NewTag(MeasurementInternalTagKeyBytes, pt.Name())
 		pt.ForEachTag(func(k, v []byte) bool {
 			tags = append(tags, models.NewTag(k, v))
 			return true
@@ -57,7 +58,7 @@ func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Poi
 		t := pt.Time()
 		itr := pt.FieldIterator()
 		for itr.Next() {
-			tags[0] = models.NewTag(FieldKeyTagKeyBytes, itr.FieldKey())
+			tags[0] = models.NewTag(FieldKeyInternalTagKeyBytes, itr.FieldKey())
 
 			var err error
 			field := make(models.Fields, 1)

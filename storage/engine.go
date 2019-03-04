@@ -360,7 +360,7 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 	for iter := collection.Iterator(); iter.Next(); {
 		tags := iter.Tags()
 
-		if tags.Len() > 0 && bytes.Equal(tags[0].Key, tsdb.FieldKeyTagKeyBytes) && bytes.Equal(tags[0].Value, timeBytes) {
+		if tags.Len() > 0 && bytes.Equal(tags[0].Key, tsdb.FieldKeyInternalTagKeyBytes) && bytes.Equal(tags[0].Value, timeBytes) {
 			// Field key "time" is invalid
 			if collection.Reason == "" {
 				collection.Reason = fmt.Sprintf("invalid field key: input field %q is invalid", timeBytes)
