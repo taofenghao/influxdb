@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"io"
 	"time"
 
@@ -17,6 +19,9 @@ type LoggingServiceBridge struct {
 
 // Query executes and logs the query.
 func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (n int64, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "LoggingServiceBridge.Query")
+	defer span.Finish()
+
 	var stats flux.Statistics
 	defer func() {
 		r := recover()
@@ -38,7 +43,7 @@ func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *Prox
 
 	results, err := s.QueryService.Query(ctx, &req.Request)
 	if err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 	// Check if this result iterator reports stats. We call this defer before cancel because
 	// the query needs to be finished before it will have valid statistics.
@@ -50,8 +55,11 @@ func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *Prox
 	encoder := req.Dialect.Encoder()
 	n, err = encoder.Encode(w, results)
 	if err != nil {
-		return n, err
+		return n, tracing.LogError(span, err)
 	}
 	// The results iterator may have had an error independent of encoding errors.
-	return n, results.Err()
+	if err = results.Err(); err != nil {
+		return 0, tracing.LogError(span, err)
+	}
+	return n, nil
 }

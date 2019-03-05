@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"io"
 	"net/http"
 
@@ -29,9 +31,12 @@ type ProxyQueryServiceBridge struct {
 }
 
 func (b ProxyQueryServiceBridge) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (int64, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "ProxyQueryServiceBridge.Query")
+	defer span.Finish()
+
 	results, err := b.QueryService.Query(ctx, &req.Request)
 	if err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 	defer results.Release()
 
@@ -43,7 +48,7 @@ func (b ProxyQueryServiceBridge) Query(ctx context.Context, w io.Writer, req *Pr
 	encoder := req.Dialect.Encoder()
 	n, err := encoder.Encode(w, results)
 	if err != nil {
-		return n, err
+		return n, tracing.LogError(span, err)
 	}
 
 	if w, ok := w.(http.ResponseWriter); ok {

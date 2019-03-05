@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"io"
 	"net/http"
 
@@ -91,30 +93,39 @@ type ProxyQueryService struct {
 }
 
 func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "ProxyQueryService.Query")
+	defer span.Finish()
+
 	u, err := newURL(s.Addr, proxyQueryPath)
 	if err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(req); err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 
 	hreq, err := http.NewRequest("POST", u.String(), &body)
 	if err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 	SetToken(s.Token, hreq)
 	hreq = hreq.WithContext(ctx)
+	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 	defer resp.Body.Close()
 	if err := CheckError(resp); err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
-	return io.Copy(w, resp.Body)
+	n, err := io.Copy(w, resp.Body)
+	if err != nil {
+		return 0, tracing.LogError(span, err)
+	}
+
+	return n, nil
 }

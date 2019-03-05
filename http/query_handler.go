@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -79,6 +81,9 @@ func NewFluxHandler(b *FluxBackend) *FluxHandler {
 }
 
 func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "FluxHandler")
+	defer span.Finish()
+
 	ctx := r.Context()
 
 	a, err := pcontext.GetAuthorizer(ctx)
@@ -124,6 +129,9 @@ type postFluxASTResponse struct {
 
 // postFluxAST returns a flux AST for provided flux string
 func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "FluxHandler")
+	defer span.Finish()
+
 	var request langRequest
 	ctx := r.Context()
 
@@ -160,6 +168,9 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 
 // postQueryAnalyze parses a query and returns any query errors.
 func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "FluxHandler")
+	defer span.Finish()
+
 	ctx := r.Context()
 
 	var req QueryRequest
@@ -189,6 +200,9 @@ type postFluxSpecResponse struct {
 
 // postFluxSpec returns a flux Spec for provided flux string
 func (h *FluxHandler) postFluxSpec(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "FluxHandler")
+	defer span.Finish()
+
 	var req langRequest
 	ctx := r.Context()
 
@@ -238,6 +252,9 @@ type suggestionsResponse struct {
 
 // getFluxSuggestions returns a list of available Flux functions for the Flux Builder
 func (h *FluxHandler) getFluxSuggestions(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "FluxHandler")
+	defer span.Finish()
+
 	ctx := r.Context()
 	completer := complete.DefaultCompleter()
 	names := completer.FunctionNames()
@@ -273,6 +290,9 @@ func (h *FluxHandler) getFluxSuggestions(w http.ResponseWriter, r *http.Request)
 
 // getFluxSuggestion returns the function parameters for the requested function
 func (h *FluxHandler) getFluxSuggestion(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "FluxHandler")
+	defer span.Finish()
+
 	ctx := r.Context()
 	name := httprouter.ParamsFromContext(ctx).ByName("name")
 	completer := complete.DefaultCompleter()
@@ -308,23 +328,26 @@ type FluxService struct {
 // Query runs a flux query against a influx server and sends the results to the io.Writer.
 // Will use the token from the context over the token within the service struct.
 func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequest) (int64, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "FluxService.Query")
+	defer span.Finish()
+
 	u, err := newURL(s.Addr, fluxPath)
 	if err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 
 	qreq, err := QueryRequestFromProxyRequest(r)
 	if err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(qreq); err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 
 	hreq, err := http.NewRequest("POST", u.String(), &body)
 	if err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 
 	SetToken(s.Token, hreq)
@@ -332,18 +355,24 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
 	hreq = hreq.WithContext(ctx)
+	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
 	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
-		return 0, err
+		return 0, tracing.LogError(span, err)
 	}
-	return io.Copy(w, resp.Body)
+	n, err := io.Copy(w, resp.Body)
+	if err != nil {
+		return 0, tracing.LogError(span, err)
+	}
+
+	return n, nil
 }
 
 var _ query.QueryService = (*FluxQueryService)(nil)
@@ -357,9 +386,12 @@ type FluxQueryService struct {
 
 // Query runs a flux query against a influx server and decodes the result
 func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.ResultIterator, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "FluxQueryService.Query")
+	defer span.Finish()
+
 	u, err := newURL(s.Addr, fluxPath)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	params := url.Values{}
 	params.Set(OrgID, r.OrganizationID.String())
@@ -371,16 +403,16 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 	}
 	qreq, err := QueryRequestFromProxyRequest(preq)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(qreq); err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	hreq, err := http.NewRequest("POST", u.String(), &body)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	SetToken(s.Token, hreq)
@@ -388,20 +420,26 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
 	hreq = hreq.WithContext(ctx)
+	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	// Can't defer resp.Body.Close here because the CSV decoder depends on reading from resp.Body after this function returns.
 
 	if err := CheckError(resp); err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	decoder := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
-	return decoder.Decode(resp.Body)
+	itr, err := decoder.Decode(resp.Body)
+	if err != nil {
+		return nil, tracing.LogError(span, err)
+	}
+
+	return itr, nil
 }
 
 // SimpleQuery runs a flux query with common parameters and returns CSV results.

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"net/http"
 
 	"github.com/influxdata/flux"
@@ -145,29 +147,33 @@ func (s *QueryService) Ping(ctx context.Context) error {
 
 // Query calls the query route with the requested query and returns a result iterator.
 func (s *QueryService) Query(ctx context.Context, req *query.Request) (flux.ResultIterator, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "QueryService.Query")
+	defer span.Finish()
+
 	u, err := newURL(s.Addr, queryPath)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(req); err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	hreq, err := http.NewRequest("POST", u.String(), &body)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	SetToken(s.Token, hreq)
 	hreq = hreq.WithContext(ctx)
+	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	if err := CheckError(resp); err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	var decoder flux.MultiResultDecoder
@@ -179,7 +185,7 @@ func (s *QueryService) Query(ctx context.Context, req *query.Request) (flux.Resu
 	}
 	results, err := decoder.Decode(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	statResults := &statsResultIterator{
